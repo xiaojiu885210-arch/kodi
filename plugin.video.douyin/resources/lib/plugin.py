@@ -11,6 +11,7 @@ import xbmcplugin
 import xbmcvfs
 
 from api import DouyinAPI
+import api_more  # noqa: F401
 from auth import has_session, load_session, parse_cookie_text
 from library import is_followed, is_liked
 
