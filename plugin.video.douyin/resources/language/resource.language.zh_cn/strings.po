@@ -1,0 +1,10 @@
+msgid ""
+msgstr ""
+"Language: zh_CN\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Addon Summary"
+msgstr "在 Kodi 里看抖音"
+
+msgid "Addon Description"
+msgstr "非官方抖音视频插件，支持推荐、热搜和分享链接播放。

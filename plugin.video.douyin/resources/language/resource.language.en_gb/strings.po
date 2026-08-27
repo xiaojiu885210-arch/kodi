@@ -1,0 +1,10 @@
+msgid ""
+msgstr ""
+"Language: en_GB\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "Addon Summary"
+msgstr "Watch Douyin in Kodi"
+
+msgid "Addon Description"
+msgstr "Unofficial Douyin video add-on for recommend, hot search and share links."

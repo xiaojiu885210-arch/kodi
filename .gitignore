@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+dist/
+plugin.video.douyin/resources/media/icon.png
+plugin.video.douyin/resources/media/fanart.jpg
+plugin.video.douyin/resources/media/fanart.png
+.idea/
+.vscode/

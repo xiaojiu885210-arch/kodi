@@ -1,0 +1,41 @@
+name: Release Kodi zip
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Pack zip
+        run: python3 scripts/pack.py
+      - name: Read version
+        id: ver
+        run: |
+          ZIP=$(ls dist/plugin.video.douyin-*.zip | head -n1)
+          VER=$(basename "$ZIP" .zip)
+          VER=${VER#plugin.video.douyin-}
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "zip=$ZIP" >> "$GITHUB_OUTPUT"
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: 抖音 Kodi 插件 v${{ steps.ver.outputs.version }}
+          files: ${{ steps.ver.outputs.zip }}
+          fail_on_unmatched_files: true
+          body: |
+            把 `plugin.video.douyin-${{ steps.ver.outputs.version }}.zip` 拷到装着 Kodi 的设备。
+
+            1. Kodi 设置 → 系统 → 插件 → 打开「未知来源」
+            2. 插件 → 从 zip 文件安装 → 选这个 zip
+            3. 视频插件里打开「抖音」
