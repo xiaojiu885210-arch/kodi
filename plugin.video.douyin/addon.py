@@ -135,15 +135,7 @@ def home():
         nick = user.get("nickname") or "已登录"
         add_dir("已登录 · %s" % nick, {"action": "account"}, plot="重新登录或退出")
         add_dir("我的关注", {"action": "following"}, plot="关注的人更新的视频")
-        add_dir("我喜欢", {"action": "favorite"}, plot="你点过赞的视频")
     else:
         add_dir("登录抖音账号", {"action": "login"}, plot="粘贴 Cookie，登录一次会记住")
-        add_dir("我的关注（需登录）", {"action": "following"}, plot="登录后可看关注更新")
-        add_dir("我喜欢（需登录）", {"action": "favorite"}, plot="登录后可看点赞")
-    add_dir("推荐", {"action": "feed"}, plot="抖音推荐视频，每次进入都会换一批")
-    add_dir("连续播放推荐", {"action": "autoplay"}, plot="加载一波推荐并立刻连续播放")
-    add_dir("热搜榜", {"action": "hot"}, plot="今日热搜，点进去看相关视频")
-    add_dir("今日热搜视频", {"action": "hot_mix"}, plot="把热搜话题里的视频合成一列")
-    add_dir("搜索", {"action": "search"}, plot="搜热搜词，或直接粘贴抖音分享链接")
-    add_dir("打开链接", {"action": "open"}, plot="粘贴 v.douyin.com 或 douyin.com/video 链接播放")
+    add_dir("推荐", {"action": "feed"}, plot="抖音推荐")
     finish("files")
