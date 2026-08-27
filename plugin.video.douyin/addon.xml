@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.douyin" name="抖音" version="1.0.0" provider-name="xiaojiu885210-arch">
+<addon id="plugin.video.douyin" name="抖音" version="1.1.0" provider-name="xiaojiu885210-arch">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -9,12 +9,13 @@
   <extension point="xbmc.addon.metadata">
     <summary lang="zh_CN">在 Kodi 里看抖音推荐、热搜和分享链接</summary>
     <summary lang="en_GB">Watch Douyin (TikTok CN) feeds, hot search and share links in Kodi</summary>
-    <description lang="zh_CN">非官方抖音视频插件。支持推荐流、热搜榜、打开分享链接，并在 Kodi 播放器中直接播放。仅供个人学习使用，内容版权归抖音及创作者所有。</description>
+    <description lang="zh_CN">非官方抖音视频插件。支持推荐流、热搜榜、今日热搜视频、打开分享链接，并在 Kodi 播放器中直接播放。仅供个人学习使用，内容版权归抖音及创作者所有。</description>
     <description lang="en_GB">Unofficial Douyin video add-on. Browse the recommend feed, hot search, and play share links inside Kodi. For personal use only. All content belongs to Douyin and its creators.</description>
     <platform>all</platform>
     <license>MIT</license>
     <source>https://github.com/xiaojiu885210-arch/kodi</source>
     <website>https://github.com/xiaojiu885210-arch/kodi</website>
+    <news lang="zh_CN">1.1.0: 推荐一次刷约 20 条；热搜视频合集；热搜接口兜底；播放更稳。</news>
     <assets>
       <icon>resources/media/icon.png</icon>
       <fanart>resources/media/fanart.png</fanart>

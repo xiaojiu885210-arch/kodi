@@ -62,16 +62,16 @@ def notify(message, icon=xbmcgui.NOTIFICATION_INFO, ms=4000):
 
 
 def add_dir(title, query, icon=ICON, plot="", is_folder=True):
-    li = xbmcgui.ListItem(label=title)
+    li = xbmcgui.ListItem(label=title, offscreen=True)
     li.setArt({"icon": icon, "thumb": icon, "fanart": FANART})
     li.setInfo("video", {"title": title, "plot": plot, "mediatype": "video"})
     xbmcplugin.addDirectoryItem(HANDLE, plugin_url(query), li, is_folder)
 
 
 def add_video(item):
-    li = xbmcgui.ListItem(label=item["title"])
+    li = xbmcgui.ListItem(label=item["title"], offscreen=True)
     art = item.get("cover") or ICON
-    li.setArt({"icon": art, "thumb": art, "poster": art, "fanart": FANART})
+    li.setArt({"icon": art, "thumb": art, "poster": art, "fanart": item.get("cover") or FANART})
     li.setInfo(
         "video",
         {
@@ -79,7 +79,6 @@ def add_video(item):
             "plot": item.get("plot") or item["title"],
             "duration": int(item.get("duration") or 0),
             "mediatype": "video",
-            "premiered": "",
         },
     )
     li.setProperty("IsPlayable", "true")
@@ -102,29 +101,36 @@ def finish(content="videos", succeeded=True, cache=False):
 
 def home():
     add_dir("推荐", {"action": "feed"}, plot="抖音推荐视频，每次进入都会换一批")
+    add_dir("连续播放推荐", {"action": "autoplay"}, plot="加载一波推荐并立刻连续播放")
     add_dir("热搜榜", {"action": "hot"}, plot="今日热搜，点进去看相关视频")
+    add_dir("今日热搜视频", {"action": "hot_mix"}, plot="把热搜话题里的视频合成一列")
     add_dir("搜索", {"action": "search"}, plot="搜热搜词，或直接粘贴抖音分享链接")
     add_dir("打开链接", {"action": "open"}, plot="粘贴 v.douyin.com 或 douyin.com/video 链接播放")
-    add_dir("连续播放推荐", {"action": "autoplay"}, plot="加载一波推荐并立刻连续播放")
     finish("files")
 
 
-def show_feed():
-    xbmcplugin.setPluginCategory(HANDLE, "推荐")
+def _list_videos(title, loader, empty_msg):
+    xbmcplugin.setPluginCategory(HANDLE, title)
     try:
-        items = client().feed(pull_type=0)
+        items = loader()
     except DouyinError as exc:
         notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
         finish(succeeded=False)
         return
     if not items:
-        notify("暂时没有拉到推荐，再进一次试试")
+        notify(empty_msg)
         finish(succeeded=True)
         return
     for item in items:
         add_video(item)
-    add_dir("换一批", {"action": "feed", "t": str(xbmc.getInfoLabel("System.Time"))}, plot="再刷一页推荐")
-    finish(cache=False)
+    return items
+
+
+def show_feed():
+    items = _list_videos("推荐", lambda: client().feed(pull_type=0), "暂时没有拉到推荐，再进一次试试")
+    if items:
+        add_dir("换一批", {"action": "feed", "t": str(xbmc.getInfoLabel("System.Time"))}, plot="再刷一页推荐")
+        finish(cache=False)
 
 
 def show_hot():
@@ -157,20 +163,19 @@ def show_hot():
 
 
 def show_hot_videos(word, sentence_id=""):
-    xbmcplugin.setPluginCategory(HANDLE, word or "热搜视频")
-    try:
-        items = client().hot_videos(word, sentence_id)
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    if not items:
-        notify("这个热搜暂时没有可播视频")
-        finish(succeeded=True)
-        return
-    for item in items:
-        add_video(item)
-    finish(cache=False)
+    items = _list_videos(
+        word or "热搜视频",
+        lambda: client().hot_videos(word, sentence_id),
+        "这个热搜暂时没有可播视频",
+    )
+    if items:
+        finish(cache=False)
+
+
+def show_hot_mix():
+    items = _list_videos("今日热搜视频", lambda: client().hot_mix(), "暂时没有热搜视频")
+    if items:
+        finish(cache=False)
 
 
 def keyboard(heading, default=""):
@@ -191,20 +196,13 @@ def do_search(query=None):
             notify("请输入关键词或链接")
             finish(succeeded=False)
             return
-    xbmcplugin.setPluginCategory(HANDLE, "搜索：%s" % query)
-    try:
-        items = client().search(query)
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    if not items:
-        notify("没搜到视频。试试热搜榜，或粘贴抖音分享链接")
-        finish(succeeded=True)
-        return
-    for item in items:
-        add_video(item)
-    finish(cache=False)
+    items = _list_videos(
+        "搜索：%s" % query,
+        lambda: client().search(query),
+        "没搜到视频。试试热搜榜，或粘贴抖音分享链接",
+    )
+    if items:
+        finish(cache=False)
 
 
 def do_open():
@@ -222,7 +220,7 @@ def do_open():
         notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
         finish(succeeded=False)
         return
-    play_item(item["aweme_id"], item.get("video_id") or "", item.get("title") or "")
+    play_item(item.get("aweme_id") or "", item.get("video_id") or "", item.get("title") or "")
 
 
 def kodi_play_path(url):
@@ -243,7 +241,7 @@ def play_item(aweme_id, video_id="", title=""):
         xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
         notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
         return
-    li = xbmcgui.ListItem(label=title or "抖音视频", path=kodi_play_path(path))
+    li = xbmcgui.ListItem(label=title or "抖音视频", path=kodi_play_path(path), offscreen=True)
     li.setArt({"icon": ICON, "thumb": ICON, "fanart": FANART})
     li.setInfo("video", {"title": title or "抖音视频", "mediatype": "video"})
     li.setMimeType("video/mp4")
@@ -276,7 +274,7 @@ def autoplay():
                 "title": item.get("title") or "",
             }
         )
-        li = xbmcgui.ListItem(label=item["title"])
+        li = xbmcgui.ListItem(label=item["title"], offscreen=True)
         art = item.get("cover") or ICON
         li.setArt({"icon": art, "thumb": art, "fanart": FANART})
         li.setInfo(
@@ -298,6 +296,8 @@ def router():
         show_hot()
     elif action == "hot_videos":
         show_hot_videos(params.get("word") or "", params.get("sentence_id") or "")
+    elif action == "hot_mix":
+        show_hot_mix()
     elif action == "search":
         do_search(params.get("q"))
     elif action == "open":
