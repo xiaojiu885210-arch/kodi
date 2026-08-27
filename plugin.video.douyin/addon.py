@@ -11,6 +11,7 @@ ADDON = xbmcaddon.Addon()
 ADDON_PATH = xbmcvfs.translatePath(ADDON.getAddonInfo("path"))
 sys.path.insert(0, os.path.join(ADDON_PATH, "resources", "lib"))
 
+from account import do_login, do_logout, show_account, show_cookie_help  # noqa: E402
 from browse import do_search, home, show_feed, show_hot, show_hot_videos  # noqa: E402
 from mine import do_toggle_follow, do_toggle_like, show_author, show_favorite, show_following  # noqa: E402
 from player import do_open, play_item  # noqa: E402
@@ -42,6 +43,17 @@ def router():
         do_toggle_like(params)
     elif action == "toggle_follow":
         do_toggle_follow(params)
+    elif action == "login":
+        do_login()
+    elif action == "logout":
+        do_logout()
+    elif action == "account":
+        show_account()
+    elif action == "cookie_help":
+        show_cookie_help()
+        from plugin import finish as _finish
+
+        _finish(succeeded=False)
     else:
         home()
 

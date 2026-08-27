@@ -6,16 +6,7 @@ import xbmcgui
 
 from api import DouyinError
 from library import remember, save_queue
-from plugin import (
-    HANDLE,
-    ICON,
-    PROFILE,
-    add_dir,
-    add_video,
-    client,
-    finish,
-    notify,
-)
+from plugin import HANDLE, ICON, PROFILE, add_dir, add_video, client, finish, notify
 
 
 def list_videos(title, loader, empty_msg):
@@ -40,6 +31,15 @@ def list_videos(title, loader, empty_msg):
 
 
 def home():
+    from auth import has_session
+    from plugin import session
+
+    sess = session()
+    if has_session(sess.get("cookies")):
+        nick = (sess.get("user") or {}).get("nickname") or "已登录"
+        add_dir("已登录 · %s" % nick, {"action": "account"}, plot="重新登录或退出")
+    else:
+        add_dir("登录抖音账号", {"action": "login"}, plot="网页扫码后粘贴 Cookie，登录一次会记住")
     add_dir("推荐", {"action": "feed"}, plot="刷推荐。点进去播，播完自动下一条，长按 OK 进作者主页")
     add_dir("搜索", {"action": "search"}, plot="搜抖音视频，或粘贴分享链接")
     add_dir("我的关注", {"action": "following"}, plot="插件里关注的作者")
