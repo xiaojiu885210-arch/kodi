@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Minimal Douyin client for Kodi (stdlib only)."""
+"""Minimal Douyin client for Kodi (Python stdlib only, no requests)."""
 from __future__ import annotations
 
 import json
@@ -24,9 +24,17 @@ HOSTS = (
     "https://aweme-hl.snssdk.com",
     "https://api5-normal-c-lq.amemv.com",
 )
-PLAY_TEMPLATE = "https://aweme.snssdk.com/aweme/v1/play/?video_id={vid}&ratio={ratio}&line=0"
+PLAY_BASES = (
+    "https://aweme.snssdk.com/aweme/v1/play/",
+    "https://www.iesdouyin.com/aweme/v1/play/",
+    "https://aweme-hl.snssdk.com/aweme/v1/play/",
+)
 
 _CTX = ssl.create_default_context()
+try:
+    _CTX_INSECURE = ssl._create_unverified_context()
+except Exception:  # noqa: BLE001
+    _CTX_INSECURE = None
 
 
 class DouyinError(Exception):
@@ -57,53 +65,66 @@ class DouyinAPI:
             "count": str(self.count),
         }
 
-    def feed(self, pull_type=0):
-        params = self.common_params()
-        params.update(
-            {
-                "type": "0",
-                "max_cursor": "0",
-                "min_cursor": "0",
-                "pull_type": str(pull_type),
-                "volume": "0.2",
-                "is_cold_start": "1" if pull_type == 0 else "0",
-            }
-        )
-        data = self._get_json("/aweme/v1/feed/", params)
-        return [_normalize(item) for item in data.get("aweme_list") or [] if _is_video(item)]
-
-    def hot_words(self):
-        url = "https://www.douyin.com/aweme/v1/web/hot/search/list/"
-        data = self._request_json(
-            url,
-            headers={
-                "User-Agent": WEB_UA,
-                "Referer": "https://www.douyin.com/",
-                "Accept": "application/json",
-            },
-        )
-        words = ((data.get("data") or {}).get("word_list")) or data.get("word_list") or []
+    def feed(self, pull_type=0, pages=4):
+        """Recommend feed. Each request only returns ~5 items, so pull a few pages."""
+        seen = set()
         out = []
-        for i, row in enumerate(words, 1):
-            word = (row.get("word") or "").strip()
-            if not word:
-                continue
-            cover = ""
-            urls = ((row.get("word_cover") or {}).get("url_list")) or []
-            if urls:
-                cover = urls[0]
-            out.append(
+        pages = max(1, min(int(pages or 1), 8))
+        last_err = None
+        for i in range(pages):
+            params = self.common_params()
+            params.update(
                 {
-                    "rank": int(row.get("position") or i),
-                    "word": word,
-                    "hot_value": int(row.get("hot_value") or 0),
-                    "sentence_id": str(row.get("sentence_id") or ""),
-                    "video_count": int(row.get("video_count") or 0),
-                    "cover": cover,
-                    "label": int(row.get("label") or 0),
+                    "type": "0",
+                    "max_cursor": "0",
+                    "min_cursor": "0",
+                    "pull_type": "0" if i == 0 and pull_type == 0 else "1",
+                    "volume": "0.2",
+                    "is_cold_start": "1" if i == 0 else "0",
                 }
             )
+            try:
+                data = self._get_json("/aweme/v1/feed/", params)
+            except DouyinError as exc:
+                last_err = exc
+                continue
+            for item in data.get("aweme_list") or []:
+                if not _is_video(item):
+                    continue
+                row = _normalize(item)
+                if not row["aweme_id"] or row["aweme_id"] in seen:
+                    continue
+                seen.add(row["aweme_id"])
+                out.append(row)
+                if len(out) >= self.count:
+                    return out
+        if not out and last_err:
+            raise last_err
         return out
+
+    def hot_words(self):
+        words = self._hot_words_web()
+        if words:
+            return words
+        return self._hot_words_app()
+
+    def _hot_words_web(self):
+        try:
+            data = self._request_json(
+                "https://www.douyin.com/aweme/v1/web/hot/search/list/",
+                headers={
+                    "User-Agent": WEB_UA,
+                    "Referer": "https://www.douyin.com/",
+                    "Accept": "application/json",
+                },
+            )
+        except DouyinError:
+            return []
+        return _parse_hot_words(data)
+
+    def _hot_words_app(self):
+        data = self._get_json("/aweme/v1/hot/search/list/", self.common_params())
+        return _parse_hot_words(data)
 
     def hot_videos(self, word, sentence_id=""):
         params = self.common_params()
@@ -113,6 +134,24 @@ class DouyinAPI:
             params["sentence_id"] = sentence_id
         data = self._get_json("/aweme/v1/hot/search/video/list/", params)
         return [_normalize(item) for item in data.get("aweme_list") or [] if _is_video(item)]
+
+    def hot_mix(self, limit=24):
+        words = self.hot_words()[:6]
+        seen = set()
+        out = []
+        for word in words:
+            try:
+                items = self.hot_videos(word["word"], word.get("sentence_id") or "")
+            except DouyinError:
+                continue
+            for item in items:
+                if item["aweme_id"] in seen:
+                    continue
+                seen.add(item["aweme_id"])
+                out.append(item)
+                if len(out) >= limit:
+                    return out
+        return out
 
     def search(self, keyword):
         keyword = (keyword or "").strip()
@@ -128,8 +167,12 @@ class DouyinAPI:
         matches = [w for w in self.hot_words() if keyword in w["word"] or w["word"] in keyword]
         seen = set()
         out = []
-        for w in matches[:5]:
-            for item in self.hot_videos(w["word"], w.get("sentence_id") or ""):
+        for word in matches[:5]:
+            try:
+                found = self.hot_videos(word["word"], word.get("sentence_id") or "")
+            except DouyinError:
+                continue
+            for item in found:
                 if item["aweme_id"] in seen:
                     continue
                 seen.add(item["aweme_id"])
@@ -148,8 +191,24 @@ class DouyinAPI:
     def from_share(self, text):
         aweme_id = self.resolve_aweme_id(text)
         if not aweme_id:
-            raise DouyinError("无法从链接里解析视频 ID")
-        return self.detail(aweme_id)
+            raise DouyinError("无法从链接里解析视频 ID，请粘贴 v.douyin.com 或 douyin.com/video 链接")
+        try:
+            return self.detail(aweme_id)
+        except DouyinError:
+            return {
+                "aweme_id": aweme_id,
+                "video_id": "",
+                "title": "抖音视频 %s" % aweme_id,
+                "plot": "来自分享链接",
+                "author": "",
+                "sec_uid": "",
+                "cover": "",
+                "duration": 0,
+                "width": 0,
+                "height": 0,
+                "likes": 0,
+                "create_time": int(time.time()),
+            }
 
     def resolve_aweme_id(self, text):
         text = (text or "").strip()
@@ -164,31 +223,33 @@ class DouyinAPI:
             r"/([0-9]{19})(?:[/?#]|$)",
         )
         for pat in patterns:
-            m = re.search(pat, text)
-            if m:
-                return m.group(1)
+            match = re.search(pat, text)
+            if match:
+                return match.group(1)
         short = re.search(r"https?://v.douyin.com/[A-Za-z0-9_-]+", text)
         if short:
             final = self._follow(short.group(0))
             for pat in patterns:
-                m = re.search(pat, final)
-                if m:
-                    return m.group(1)
+                match = re.search(pat, final)
+                if match:
+                    return match.group(1)
         return ""
 
     def play_url(self, item=None, video_id="", aweme_id=""):
         vid = video_id or (item or {}).get("video_id") or ""
-        if vid:
-            return PLAY_TEMPLATE.format(vid=urllib.parse.quote(vid, safe=""), ratio=self.quality)
-        aid = aweme_id or (item or {}).get("aweme_id") or ""
-        if not aid:
-            raise DouyinError("缺少视频 ID")
-        fresh = self.detail(aid)
-        if not fresh.get("video_id"):
-            raise DouyinError("没有可播放的视频地址")
-        return PLAY_TEMPLATE.format(
-            vid=urllib.parse.quote(fresh["video_id"], safe=""), ratio=self.quality
-        )
+        if not vid:
+            aid = aweme_id or (item or {}).get("aweme_id") or ""
+            if not aid:
+                raise DouyinError("缺少视频 ID")
+            try:
+                fresh = self.detail(aid)
+                vid = fresh.get("video_id") or ""
+            except DouyinError:
+                vid = ""
+        if not vid:
+            raise DouyinError("没有可播放的视频地址。推荐和热搜可以直接播；分享链接若失败请改用推荐。")
+        query = urllib.parse.urlencode({"video_id": vid, "ratio": self.quality, "line": "0"})
+        return PLAY_BASES[0] + "?" + query
 
     def _get_json(self, path, params):
         query = urllib.parse.urlencode(params)
@@ -203,7 +264,7 @@ class DouyinAPI:
                         "Accept": "application/json",
                     },
                 )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 last_err = exc
                 continue
         raise DouyinError("网络请求失败：%s" % last_err)
@@ -216,6 +277,8 @@ class DouyinAPI:
             data = json.loads(raw.decode("utf-8"))
         except ValueError as exc:
             raise DouyinError("接口返回不是 JSON") from exc
+        if not isinstance(data, dict):
+            return data
         code = data.get("status_code")
         if code not in (0, None):
             msg = data.get("status_msg") or ("错误码 %s" % code)
@@ -224,14 +287,24 @@ class DouyinAPI:
 
     def _request_bytes(self, url, headers=None, timeout=20):
         req = urllib.request.Request(url, headers=headers or {})
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=_CTX) as resp:
-                return resp.read(2_000_000)
-        except urllib.error.HTTPError as exc:
-            body = exc.read(400) if exc.fp else b""
-            raise DouyinError("HTTP %s %s" % (exc.code, body[:120])) from exc
-        except urllib.error.URLError as exc:
-            raise DouyinError("连接失败：%s" % exc.reason) from exc
+        contexts = [_CTX]
+        if _CTX_INSECURE is not None:
+            contexts.append(_CTX_INSECURE)
+        last_err = None
+        for ctx in contexts:
+            try:
+                with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+                    return resp.read(2_000_000)
+            except urllib.error.HTTPError as exc:
+                body = exc.read(400) if exc.fp else b""
+                raise DouyinError("HTTP %s %s" % (exc.code, body[:120])) from exc
+            except urllib.error.URLError as exc:
+                last_err = DouyinError("连接失败：%s" % exc.reason)
+                continue
+            except ssl.SSLError as exc:
+                last_err = DouyinError("SSL 失败：%s" % exc)
+                continue
+        raise last_err or DouyinError("连接失败")
 
     def _follow(self, url):
         class _Capture(urllib.request.HTTPRedirectHandler):
@@ -254,7 +327,7 @@ class DouyinAPI:
         except urllib.error.HTTPError as exc:
             loc = exc.headers.get("Location") if exc.headers else None
             return loc or _Capture.last
-        except Exception:  # noqa: BLE001
+        except Exception:
             return _Capture.last
 
 
@@ -263,11 +336,13 @@ def _new_device_id():
 
 
 def _is_video(item):
-    if not item:
+    if not item or not item.get("aweme_id"):
+        return False
+    if item.get("aweme_type") in (2, 68, 101):
         return False
     video = item.get("video") or {}
-    play = video.get("play_addr") or {}
-    return bool((play.get("uri") or (play.get("url_list") or [None])[0]) and item.get("aweme_id"))
+    play = video.get("play_addr") or video.get("play_addr_h264") or {}
+    return bool(play.get("uri") or (play.get("url_list") or [None])[0])
 
 
 def _first_url(node):
@@ -275,6 +350,32 @@ def _first_url(node):
         return ""
     urls = node.get("url_list") or []
     return urls[0] if urls else ""
+
+
+def _parse_hot_words(data):
+    payload = data.get("data") if isinstance(data.get("data"), dict) else data
+    rows = (payload.get("word_list") if isinstance(payload, dict) else None) or data.get("word_list") or []
+    out = []
+    for i, row in enumerate(rows, 1):
+        word = (row.get("word") or "").strip()
+        if not word:
+            continue
+        cover = ""
+        urls = ((row.get("word_cover") or {}).get("url_list")) or []
+        if urls:
+            cover = urls[0]
+        out.append(
+            {
+                "rank": int(row.get("position") or i),
+                "word": word,
+                "hot_value": int(row.get("hot_value") or 0),
+                "sentence_id": str(row.get("sentence_id") or ""),
+                "video_count": int(row.get("video_count") or 0),
+                "cover": cover,
+                "label": int(row.get("label") or 0),
+            }
+        )
+    return out
 
 
 def _normalize(item):
