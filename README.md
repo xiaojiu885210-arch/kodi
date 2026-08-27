@@ -1,6 +1,20 @@
 # 抖音 Kodi 插件
 
-在 Kodi 里看抖音推荐视频、热搜，以及打开抖音分享链接。
+> **不要点绿色「代码 / Code」按钮里的「下载 ZIP 文件」。**
+> 那个会得到 `kodi-main.zip`（大约 19KB），Kodi 会报：
+> **无法从 zip 文件安装加载项 · 由于结构无效**
+
+`kodi-main.zip` 是仓库源码，不是插件安装包。Kodi 只认下面这个文件。
+
+## 正确安装包（请点这个）
+
+**[↓ 下载 plugin.video.douyin-1.1.0.zip](https://github.com/xiaojiu885210-arch/kodi/releases/download/v1.1.0/plugin.video.douyin-1.1.0.zip)**
+
+-文件名必须是 `plugin.video.douyin-1.1.0.zip`
+- 大小约 **190 KB**（如果只有 19KB，就是下错了）
+- 也可以打开仓库右边 **发布 / Releases** 手动选最新 zip
+
+详细步骤见 [INSTALL.md](INSTALL.md)。
 
 插件 ID：`plugin.video.douyin`  
 当前版本：`1.1.0`
@@ -9,13 +23,7 @@
 
 ## 安装（从 zip）
 
-直接下载安装包：
-
-**[plugin.video.douyin-1.1.0.zip](https://github.com/xiaojiu885210-arch/kodi/releases/download/v1.1.0/plugin.video.douyin-1.1.0.zip)**
-
-也可以打开仓库 [Releases](https://github.com/xiaojiu885210-arch/kodi/releases) 页面手动选最新 zip。
-
-1. 把 zip 拷到装着 Kodi 的电视 / 电脑 / 盒子（U 盘也可以）。
+1. 把 **plugin.video.douyin-1.1.0.zip** 拷到装着 Kodi 的电视 / 电脑 / 盒子（**U 盘最稳**，尽量不要走乱掉的 `smb://` 网络路径）。
 2. 打开 Kodi → **设置** → **系统** → **插件** → 打开 **未知来源**。
 3. 回到主页 → **插件** → 右上角打开盒子图标 → **从 zip 文件安装**。
 4. 选中 `plugin.video.douyin-1.1.0.zip`，等提示安装成功。
@@ -23,14 +31,14 @@
 
 需要 **Kodi 19 Matrix 及以上**（带 Python 3）。Kodi 20 / 21 都可以。
 
-zip 必须保持这种结构（不要自己把里面的文件再解压一层再压回去）：
+**不要解压再重新压回去。** zip 里第一层必须是 `plugin.video.douyin/` 文件夹：
 
 ```text
 plugin.video.douyin-1.1.0.zip
-\u2514\u2500\u2500 plugin.video.douyin/
-    \u251c\u2500\u2500 addon.xml
-    \u251c\u2500\u2500 addon.py
-    \u2514\u2500\u2500 resources/
+  plugin.video.douyin/
+    addon.xml
+    addon.py
+    resources/
 ```
 
 ## 能做什么

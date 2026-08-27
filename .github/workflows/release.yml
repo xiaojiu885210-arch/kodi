@@ -34,8 +34,11 @@ jobs:
           files: ${{ steps.ver.outputs.zip }}
           fail_on_unmatched_files: true
           body: |
-            把 `plugin.video.douyin-${{ steps.ver.outputs.version }}.zip` 拷到装着 Kodi 的设备。
+            只能装这个文件：`plugin.video.douyin-${{ steps.ver.outputs.version }}.zip`
 
-            1. Kodi 设置 → 系统 → 插件 → 打开「未知来源」
-            2. 插件 → 从 zip 文件安装 → 选这个 zip
-            3. 视频插件里打开「抖音」
+            **不要**下 GitHub 绿色按钮里的 `kodi-main.zip`，那个会让 Kodi 报「结构无效」。
+
+            1. 把这个 zip 拷到 Kodi 设备（U 盘最稳），不要解压
+            2. Kodi 设置 → 系统 → 插件 → 打开「未知来源」
+            3. 插件 → 从 zip 文件安装 → 选这个 zip
+            4. 视频插件里打开「抖音」
