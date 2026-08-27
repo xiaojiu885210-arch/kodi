@@ -118,7 +118,8 @@ class DouyinAPI:
         keyword = (keyword or "").strip()
         if not keyword:
             return []
-        if re.search(r"douyin\\.com|iesdouyin\\.com|v\\.douyin", keyword, re.I):
+        lowered = keyword.lower()
+        if "douyin.com" in lowered or "iesdouyin.com" in lowered or "v.douyin" in lowered:
             item = self.from_share(keyword)
             return [item] if item else []
         items = self.hot_videos(keyword)
@@ -155,20 +156,18 @@ class DouyinAPI:
         if not text:
             return ""
         patterns = (
-            r"douyin\\.com/video/(\\d{15,})",
-            r"douyin\\.com/note/(\\d{15,})",
-            r"iesdouyin\\.com/share/video/(\\d{15,})",
-            r"modal_id=(\\d{15,})",
-            r"aweme_id=(\\d{15,})",
-            r"/(\\d{19})(?:[/?#]|$)",
+            r"douyin.com/video/([0-9]{15,})",
+            r"douyin.com/note/([0-9]{15,})",
+            r"iesdouyin.com/share/video/([0-9]{15,})",
+            r"modal_id=([0-9]{15,})",
+            r"aweme_id=([0-9]{15,})",
+            r"/([0-9]{19})(?:[/?#]|$)",
         )
         for pat in patterns:
             m = re.search(pat, text)
             if m:
                 return m.group(1)
-        short = re.search(r"https?://v\\.douyin\\.com/[A-Za-z0-9_\\-]+/?", text)
-        if not short:
-            short = re.search(r"(https?://v\\.douyin\\.com/[A-Za-z0-9_\\-]+)", text)
+        short = re.search(r"https?://v.douyin.com/[A-Za-z0-9_-]+", text)
         if short:
             final = self._follow(short.group(0))
             for pat in patterns:
