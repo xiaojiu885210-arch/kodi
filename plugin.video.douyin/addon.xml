@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="plugin.video.douyin" name="抖音" version="1.3.2" provider-name="xiaojiu885210-arch">
+<addon id="plugin.video.douyin" name="抖音" version="1.3.3" provider-name="xiaojiu885210-arch">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -9,12 +9,12 @@
   <extension point="xbmc.addon.metadata">
     <summary lang="zh_CN">在 Kodi 里看抖音</summary>
     <summary lang="en_GB">Watch Douyin in Kodi</summary>
-    <description lang="zh_CN">非官方抖音插件。作者主页会试拉更多作品。仅供个人学习使用。</description>
+    <description lang="zh_CN">非官方抖音插件。作者主页会尝试拉更多作品。仅供个人学习使用。</description>
     <description lang="en_GB">Unofficial Douyin add-on. For personal use only.</description>
     <platform>all</platform>
     <license>MIT</license>
     <source>https://github.com/xiaojiu885210-arch/kodi</source>
-    <news lang="zh_CN">1.3.2: 作者主页多拉作品；可搜作者名。</news>
+    <news lang="zh_CN">1.3.3: 作者主页多拉作品，并可搜作者名。</news>
     <assets>
       <icon>resources/media/icon.png</icon>
       <fanart>resources/media/fanart.png</fanart>
