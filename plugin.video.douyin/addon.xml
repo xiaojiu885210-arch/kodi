@@ -17,7 +17,7 @@
     <website>https://github.com/xiaojiu885210-arch/kodi</website>
     <assets>
       <icon>resources/media/icon.png</icon>
-      <fanart>resources/media/fanart.jpg</fanart>
+      <fanart>resources/media/fanart.png</fanart>
     </assets>
     <reuselanguageinvoker>false</reuselanguageinvoker>
   </extension>
