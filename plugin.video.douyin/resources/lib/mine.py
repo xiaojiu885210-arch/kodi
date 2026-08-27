@@ -49,7 +49,7 @@ def show_author(sec_uid, user_id="", nickname=""):
     try:
         api = client()
         if hasattr(api, "user_posts"):
-            fresh = api.user_posts(sec_uid, user_id)
+            fresh = api.user_posts(sec_uid, user_id, nickname)
             if fresh:
                 remember(PROFILE, fresh)
                 seen = {str(x.get("aweme_id") or "") for x in items}
@@ -59,8 +59,14 @@ def show_author(sec_uid, user_id="", nickname=""):
                         seen.add(str(row.get("aweme_id") or ""))
     except DouyinError:
         pass
+    if nickname:
+        add_dir(
+            "搜索 @%s" % nickname,
+            {"action": "search", "q": nickname},
+            plot="用全站搜索找这个作者的视频",
+        )
     if not items:
-        notify("暂时没有这个作者的视频，先从推荐里多刷几条再进主页")
+        notify("作者作品接口被拦了。先用上面的搜索，或回推荐再刷几条")
         finish(succeeded=True)
         return
     remember(PROFILE, items)
