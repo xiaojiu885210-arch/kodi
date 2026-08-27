@@ -21,6 +21,16 @@ FANART = os.path.join(ADDON_PATH, "resources", "media", "fanart.png")
 
 sys.path.insert(0, os.path.join(ADDON_PATH, "resources", "lib"))
 from api import DouyinAPI, DouyinError  # noqa: E402
+from auth import (  # noqa: E402
+    COOKIE_HELP,
+    clear_session,
+    has_session,
+    load_session,
+    parse_cookie_text,
+    save_session,
+)
+
+PROFILE = xbmcvfs.translatePath(ADDON.getAddonInfo("profile"))
 
 PLAY_UA = (
     "com.ss.android.ugc.aweme/190500 "
@@ -38,13 +48,32 @@ def _ensure_device_id():
     return device_id
 
 
+def _session():
+    if not os.path.isdir(PROFILE):
+        xbmcvfs.mkdirs(PROFILE)
+    sess = load_session(PROFILE)
+    if has_session(sess.get("cookies")):
+        return sess
+    raw = ADDON.getSetting("cookie") or ""
+    cookies = parse_cookie_text(raw)
+    if has_session(cookies):
+        return {"cookies": cookies, "user": sess.get("user") or {}}
+    return {"cookies": {}, "user": {}}
+
+
 def client():
     quality = ADDON.getSetting("quality") or "1080p"
     try:
         count = int(ADDON.getSetting("count") or "20")
     except ValueError:
         count = 20
-    return DouyinAPI(device_id=_ensure_device_id(), count=count, quality=quality)
+    sess = _session()
+    return DouyinAPI(
+        device_id=_ensure_device_id(),
+        count=count,
+        quality=quality,
+        cookies=sess.get("cookies") or {},
+    )
 
 
 def plugin_url(query):
@@ -100,6 +129,17 @@ def finish(content="videos", succeeded=True, cache=False):
 
 
 def home():
+    sess = _session()
+    user = sess.get("user") or {}
+    if has_session(sess.get("cookies")):
+        nick = user.get("nickname") or "已登录"
+        add_dir("已登录 · %s" % nick, {"action": "account"}, plot="重新登录或退出")
+        add_dir("我的关注", {"action": "following"}, plot="关注的人更新的视频")
+        add_dir("我喜欢", {"action": "favorite"}, plot="你点过赞的视频")
+    else:
+        add_dir("登录抖音账号", {"action": "login"}, plot="粘贴 Cookie，登录一次会记住")
+        add_dir("我的关注（需登录）", {"action": "following"}, plot="登录后可看关注更新")
+        add_dir("我喜欢（需登录）", {"action": "favorite"}, plot="登录后可看点赞")
     add_dir("推荐", {"action": "feed"}, plot="抖音推荐视频，每次进入都会换一批")
     add_dir("连续播放推荐", {"action": "autoplay"}, plot="加载一波推荐并立刻连续播放")
     add_dir("热搜榜", {"action": "hot"}, plot="今日热搜，点进去看相关视频")
@@ -107,208 +147,3 @@ def home():
     add_dir("搜索", {"action": "search"}, plot="搜热搜词，或直接粘贴抖音分享链接")
     add_dir("打开链接", {"action": "open"}, plot="粘贴 v.douyin.com 或 douyin.com/video 链接播放")
     finish("files")
-
-
-def _list_videos(title, loader, empty_msg):
-    xbmcplugin.setPluginCategory(HANDLE, title)
-    try:
-        items = loader()
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    if not items:
-        notify(empty_msg)
-        finish(succeeded=True)
-        return
-    for item in items:
-        add_video(item)
-    return items
-
-
-def show_feed():
-    items = _list_videos("推荐", lambda: client().feed(pull_type=0), "暂时没有拉到推荐，再进一次试试")
-    if items:
-        add_dir("换一批", {"action": "feed", "t": str(xbmc.getInfoLabel("System.Time"))}, plot="再刷一页推荐")
-        finish(cache=False)
-
-
-def show_hot():
-    xbmcplugin.setPluginCategory(HANDLE, "热搜榜")
-    try:
-        words = client().hot_words()
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    labels = {0: "", 1: "新", 3: "热"}
-    for word in words:
-        tag = labels.get(word.get("label") or 0, "")
-        prefix = "%02d. " % word["rank"]
-        if tag:
-            prefix += "[%s] " % tag
-        title = prefix + word["word"]
-        plot = "热度 %s · %s 条视频" % (word.get("hot_value") or "-", word.get("video_count") or "-")
-        add_dir(
-            title,
-            {
-                "action": "hot_videos",
-                "word": word["word"],
-                "sentence_id": word.get("sentence_id") or "",
-            },
-            icon=word.get("cover") or ICON,
-            plot=plot,
-        )
-    finish("files")
-
-
-def show_hot_videos(word, sentence_id=""):
-    items = _list_videos(
-        word or "热搜视频",
-        lambda: client().hot_videos(word, sentence_id),
-        "这个热搜暂时没有可播视频",
-    )
-    if items:
-        finish(cache=False)
-
-
-def show_hot_mix():
-    items = _list_videos("今日热搜视频", lambda: client().hot_mix(), "暂时没有热搜视频")
-    if items:
-        finish(cache=False)
-
-
-def keyboard(heading, default=""):
-    kb = xbmc.Keyboard(default, heading, False)
-    kb.doModal()
-    if not kb.isConfirmed():
-        return None
-    return (kb.getText() or "").strip()
-
-
-def do_search(query=None):
-    if not query:
-        query = keyboard("搜索抖音 / 粘贴分享链接")
-        if query is None:
-            finish(succeeded=False)
-            return
-        if not query:
-            notify("请输入关键词或链接")
-            finish(succeeded=False)
-            return
-    items = _list_videos(
-        "搜索：%s" % query,
-        lambda: client().search(query),
-        "没搜到视频。试试热搜榜，或粘贴抖音分享链接",
-    )
-    if items:
-        finish(cache=False)
-
-
-def do_open():
-    text = keyboard("粘贴抖音分享链接或口令")
-    if text is None:
-        finish(succeeded=False)
-        return
-    if not text:
-        notify("没有输入内容")
-        finish(succeeded=False)
-        return
-    try:
-        item = client().from_share(text)
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    play_item(item.get("aweme_id") or "", item.get("video_id") or "", item.get("title") or "")
-
-
-def kodi_play_path(url):
-    headers = urllib.parse.urlencode(
-        {
-            "User-Agent": PLAY_UA,
-            "Referer": "https://www.douyin.com/",
-        }
-    )
-    return url + "|" + headers
-
-
-def play_item(aweme_id, video_id="", title=""):
-    api = client()
-    try:
-        path = api.play_url(video_id=video_id, aweme_id=aweme_id)
-    except DouyinError as exc:
-        xbmcplugin.setResolvedUrl(HANDLE, False, xbmcgui.ListItem())
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        return
-    li = xbmcgui.ListItem(label=title or "抖音视频", path=kodi_play_path(path), offscreen=True)
-    li.setArt({"icon": ICON, "thumb": ICON, "fanart": FANART})
-    li.setInfo("video", {"title": title or "抖音视频", "mediatype": "video"})
-    li.setMimeType("video/mp4")
-    li.setContentLookup(False)
-    li.setProperty("IsPlayable", "true")
-    xbmcplugin.setResolvedUrl(HANDLE, True, li)
-
-
-def autoplay():
-    xbmcplugin.setPluginCategory(HANDLE, "连续播放")
-    try:
-        items = client().feed(pull_type=0)
-    except DouyinError as exc:
-        notify(str(exc), xbmcgui.NOTIFICATION_ERROR)
-        finish(succeeded=False)
-        return
-    if not items:
-        notify("暂时没有可播放的推荐")
-        finish(succeeded=True)
-        return
-    playlist = xbmc.PlayList(xbmc.PLAYLIST_VIDEO)
-    playlist.clear()
-    for item in items:
-        add_video(item)
-        path = plugin_url(
-            {
-                "action": "play",
-                "aweme_id": item.get("aweme_id") or "",
-                "video_id": item.get("video_id") or "",
-                "title": item.get("title") or "",
-            }
-        )
-        li = xbmcgui.ListItem(label=item["title"], offscreen=True)
-        art = item.get("cover") or ICON
-        li.setArt({"icon": art, "thumb": art, "fanart": FANART})
-        li.setInfo(
-            "video",
-            {"title": item["title"], "plot": item.get("plot") or "", "mediatype": "video"},
-        )
-        li.setProperty("IsPlayable", "true")
-        playlist.add(path, li)
-    xbmc.Player().play(playlist)
-    finish(cache=False)
-
-
-def router():
-    params = get_params()
-    action = params.get("action") or ""
-    if action == "feed":
-        show_feed()
-    elif action == "hot":
-        show_hot()
-    elif action == "hot_videos":
-        show_hot_videos(params.get("word") or "", params.get("sentence_id") or "")
-    elif action == "hot_mix":
-        show_hot_mix()
-    elif action == "search":
-        do_search(params.get("q"))
-    elif action == "open":
-        do_open()
-    elif action == "play":
-        play_item(params.get("aweme_id") or "", params.get("video_id") or "", params.get("title") or "")
-    elif action == "autoplay":
-        autoplay()
-    else:
-        home()
-
-
-if __name__ == "__main__":
-    router()
